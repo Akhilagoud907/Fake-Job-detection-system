@@ -1,0 +1,255 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fake Job Detection</title>
+
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #74ebd5, #acb6e5);
+            color: #333;
+        }
+
+        h1, h2 {
+            text-align: center;
+            color: black;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .container {
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 15px;
+            font-size: 15px;
+            border-radius: 10px;
+            border: 1px solid #ccc;
+            resize: none;
+        }
+
+        button, select {
+            margin-top: 10px;
+            padding: 12px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .submit-btn { background: #6c63ff; color: white; }
+        .clear-btn { background: #ff6b6b; color: white; margin-left: 10px; }
+        .example-btn { background: #20c997; color: white; font-size: 12px; }
+
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            font-weight: bold;
+        }
+
+        .real { background: #d4edda; color: #155724; }
+        .fake { background: #f8d7da; color: #721c24; }
+
+        .warning { font-size: 13px; color: #856404; margin-top: 8px; }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .modal {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            animation: scaleIn 0.3s ease;
+        }
+
+        .modal h3 { color: #28a745; }
+        .modal button {
+            margin-top: 15px;
+            background: #6c63ff;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+<h1>Fake Job Detection System</h1>
+
+<div class="container">
+    <label>Job Description:</label>
+    <textarea id="jobText" placeholder="Paste job description here..."></textarea>
+
+    <button class="submit-btn" onclick="submitJob()">Submit</button>
+    <button class="clear-btn" onclick="resetForm()">Clear</button>
+
+    <div style="margin-top:10px;">
+        <button class="example-btn" onclick="loadExample('real')">Example Real Job</button>
+        <button class="example-btn" onclick="loadExample('fake')">Example Fake Job</button>
+    </div>
+
+    <div id="resultBox" class="result"></div>
+</div>
+
+<div class="container">
+    <h2>Flag this post</h2>
+
+    <label>Reason:</label>
+    <select id="reason">
+        <option value="spam">Spam</option>
+        <option value="scam">Scam</option>
+        <option value="other">Other</option>
+    </select>
+
+    <label>Comments:</label>
+    <textarea id="comments" placeholder="Additional comments..."></textarea>
+
+    <button class="submit-btn" onclick="flagPost()">Submit Flag</button>
+</div>
+
+<!-- CONFIRMATION MODAL -->
+<div id="confirmationModal" class="modal-overlay">
+    <div class="modal">
+        <h3>✅ Success</h3>
+        <p>Job post has been successfully stored in the database.</p>
+        <button onclick="closeModal()">OK</button>
+    </div>
+</div>
+
+<script>
+    const API_BASE = "http://127.0.0.1:8000";
+
+    // Submit Job Prediction
+    function submitJob() {
+        const text = document.getElementById('jobText').value.trim();
+        const resultBox = document.getElementById('resultBox');
+        resultBox.innerHTML = "";
+        if (!text) {
+            alert("Please enter a job description!");
+            return;
+        }
+
+        resultBox.innerHTML = "Processing...";
+
+        fetch(`${API_BASE}/predict`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text })
+        })
+        .then(response => response.json())
+        .then(data => {
+            let cls, icon;
+            if (data.prediction === "Fake") {
+                cls = "fake";
+                icon = "❌";
+            } else {
+                cls = "real";
+                icon = "✅";
+            }
+
+            resultBox.className = `result ${cls}`;
+            resultBox.innerHTML = `${icon} ${data.prediction} Confidence: ${data.confidence}%`;
+
+            if (data.confidence < 70) {
+                resultBox.innerHTML += `<div class="warning">⚠ Low confidence, interpret result cautiously</div>`;
+            }
+
+            if (data.processing_time) {
+                resultBox.innerHTML += `<div class="warning">Processing time: ${data.processing_time}s</div>`;
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            resultBox.className = "result fake";
+            resultBox.innerHTML = "❌ Error: Could not fetch prediction.";
+        });
+    }
+
+    // Flag Post
+    function flagPost() {
+        fetch(`${API_BASE}/flag`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                text: document.getElementById('jobText').value,
+                reason: document.getElementById('reason').value,
+                comments: document.getElementById('comments').value
+            })
+        })
+        .then(res => res.json())
+        .then(() => showModal())
+        .catch(err => {
+            console.error(err);
+            alert("❌ Error storing flagged post");
+        });
+    }
+
+    function showModal() {
+        document.getElementById("confirmationModal").style.display = "flex";
+    }
+
+    function closeModal() {
+        document.getElementById("confirmationModal").style.display = "none";
+    }
+
+    function resetForm() {
+        document.getElementById('jobText').value = "";
+        document.getElementById('resultBox').innerHTML = "";
+        document.getElementById('comments').value = "";
+    }
+
+    function loadExample(type) {
+        const jobText = document.getElementById('jobText');
+        if (type === 'real') {
+            jobText.value = `Software Engineer – Backend
+Company: TechSolutions Inc.
+Location: Bangalore, India
+Responsibilities:
+- Develop backend services using Python/Django/Flask.
+- Collaborate with frontend engineers.
+- Ensure performance and scalability.
+Requirements: 2+ years experience in backend development.`;
+        } else {
+            jobText.value = `Work from Home and Earn $15,000 Per Month!
+Company: Global Online Jobs
+Location: Anywhere
+Requirements: No experience needed. Must pay $100 for startup kit.
+Benefits: Immediate approval, guaranteed income, free online training.
+Hurry! Limited slots available.`;
+        }
+    }
+</script>
+</body>
+</html>
