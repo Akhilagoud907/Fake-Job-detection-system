@@ -1,10 +1,8 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Fake Job Detection</title>
-
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -57,6 +55,8 @@
             padding: 20px;
             border-radius: 12px;
             font-weight: bold;
+            min-height: 40px;
+            transition: all 0.3s ease;
         }
 
         .real { background: #d4edda; color: #155724; }
@@ -102,6 +102,31 @@
             from { transform: scale(0.8); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
         }
+
+        /* Spinner */
+        .spinner {
+            display: none;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        /* Confidence Bar */
+        .progress-container {
+            width: 100%;
+            background-color: #ddd;
+            border-radius: 5px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            width: 0%;
+            height: 20px;
+            background-color: #4caf50;
+            text-align: center;
+            color: white;
+            transition: width 0.5s ease;
+        }
     </style>
 </head>
 <body>
@@ -112,15 +137,19 @@
     <label>Job Description:</label>
     <textarea id="jobText" placeholder="Paste job description here..."></textarea>
 
-    <button class="submit-btn" onclick="submitJob()">Submit</button>
-    <button class="clear-btn" onclick="resetForm()">Clear</button>
+    <button type="button" class="submit-btn" onclick="submitJob()">Submit</button>
+    <button type="button" class="clear-btn" onclick="resetForm()">Clear</button>
 
     <div style="margin-top:10px;">
-        <button class="example-btn" onclick="loadExample('real')">Example Real Job</button>
-        <button class="example-btn" onclick="loadExample('fake')">Example Fake Job</button>
+        <button type="button" class="example-btn" onclick="loadExample('real')">Example Real Job</button>
+        <button type="button" class="example-btn" onclick="loadExample('fake')">Example Fake Job</button>
     </div>
 
+    <div class="spinner" id="spinner">Processing...</div>
     <div id="resultBox" class="result"></div>
+    <div class="progress-container">
+        <div class="progress-bar" id="confidenceBar"></div>
+    </div>
 </div>
 
 <div class="container">
@@ -136,7 +165,7 @@
     <label>Comments:</label>
     <textarea id="comments" placeholder="Additional comments..."></textarea>
 
-    <button class="submit-btn" onclick="flagPost()">Submit Flag</button>
+    <button type="button" class="submit-btn" onclick="flagPost()">Submit Flag</button>
 </div>
 
 <!-- CONFIRMATION MODAL -->
@@ -144,96 +173,32 @@
     <div class="modal">
         <h3>✅ Success</h3>
         <p>Job post has been successfully stored in the database.</p>
-        <button onclick="closeModal()">OK</button>
+        <button type="button" onclick="closeModal()">OK</button>
     </div>
 </div>
 
 <script>
-    const API_BASE = "http://127.0.0.1:8000";
+const API_BASE = "http://127.0.0.1:8000";
 
-    // Submit Job Prediction
-    function submitJob() {
-        const text = document.getElementById('jobText').value.trim();
-        const resultBox = document.getElementById('resultBox');
-        resultBox.innerHTML = "";
-        if (!text) {
-            alert("Please enter a job description!");
-            return;
-        }
+// Prevent Enter key from causing reload
+document.getElementById('jobText').addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey) e.preventDefault();
+});
 
-        resultBox.innerHTML = "Processing...";
+// -------------------- Reset Form -------------------- //
+function resetForm() {
+    document.getElementById('jobText').value = "";
+    document.getElementById('resultBox').innerHTML = "";
+    document.getElementById('confidenceBar').style.width = "0%";
+    document.getElementById('confidenceBar').innerHTML = "";
+    document.getElementById('comments').value = "";
+}
 
-        fetch(`${API_BASE}/predict`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text })
-        })
-        .then(response => response.json())
-        .then(data => {
-            let cls, icon;
-            if (data.prediction === "Fake") {
-                cls = "fake";
-                icon = "❌";
-            } else {
-                cls = "real";
-                icon = "✅";
-            }
-
-            resultBox.className = `result ${cls}`;
-            resultBox.innerHTML = `${icon} ${data.prediction} Confidence: ${data.confidence}%`;
-
-            if (data.confidence < 70) {
-                resultBox.innerHTML += `<div class="warning">⚠ Low confidence, interpret result cautiously</div>`;
-            }
-
-            if (data.processing_time) {
-                resultBox.innerHTML += `<div class="warning">Processing time: ${data.processing_time}s</div>`;
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            resultBox.className = "result fake";
-            resultBox.innerHTML = "❌ Error: Could not fetch prediction.";
-        });
-    }
-
-    // Flag Post
-    function flagPost() {
-        fetch(`${API_BASE}/flag`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                text: document.getElementById('jobText').value,
-                reason: document.getElementById('reason').value,
-                comments: document.getElementById('comments').value
-            })
-        })
-        .then(res => res.json())
-        .then(() => showModal())
-        .catch(err => {
-            console.error(err);
-            alert("❌ Error storing flagged post");
-        });
-    }
-
-    function showModal() {
-        document.getElementById("confirmationModal").style.display = "flex";
-    }
-
-    function closeModal() {
-        document.getElementById("confirmationModal").style.display = "none";
-    }
-
-    function resetForm() {
-        document.getElementById('jobText').value = "";
-        document.getElementById('resultBox').innerHTML = "";
-        document.getElementById('comments').value = "";
-    }
-
-    function loadExample(type) {
-        const jobText = document.getElementById('jobText');
-        if (type === 'real') {
-            jobText.value = `Software Engineer – Backend
+// -------------------- Load Example -------------------- //
+function loadExample(type) {
+    const jobText = document.getElementById('jobText');
+    if (type === 'real') {
+        jobText.value = `Software Engineer – Backend
 Company: TechSolutions Inc.
 Location: Bangalore, India
 Responsibilities:
@@ -241,15 +206,105 @@ Responsibilities:
 - Collaborate with frontend engineers.
 - Ensure performance and scalability.
 Requirements: 2+ years experience in backend development.`;
-        } else {
-            jobText.value = `Work from Home and Earn $15,000 Per Month!
+    } else {
+        jobText.value = `Work from Home and Earn $15,000 Per Month!
 Company: Global Online Jobs
 Location: Anywhere
 Requirements: No experience needed. Must pay $100 for startup kit.
 Benefits: Immediate approval, guaranteed income, free online training.
 Hurry! Limited slots available.`;
-        }
     }
+}
+
+// -------------------- Submit Job Prediction -------------------- //
+async function submitJob() {
+    const text = document.getElementById('jobText').value.trim();
+    const resultBox = document.getElementById('resultBox');
+    const spinner = document.getElementById('spinner');
+    const confidenceBar = document.getElementById('confidenceBar');
+
+    resultBox.innerHTML = "";
+    confidenceBar.style.width = "0%";
+    confidenceBar.innerHTML = "";
+
+    if (!text) {
+        alert("Please enter a job description!");
+        return;
+    }
+
+    spinner.style.display = "block";
+
+    try {
+        const response = await fetch(`${API_BASE}/predictions/predict`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text })
+        });
+
+        if (!response.ok) throw new Error("Server error");
+
+        const data = await response.json();
+        spinner.style.display = "none";
+
+        let cls = data.prediction === "Fake" ? "fake" : "real";
+        let icon = data.prediction === "Fake" ? "❌" : "✅";
+
+        resultBox.className = `result ${cls}`;
+        resultBox.innerHTML = `${icon} ${data.prediction}`;
+
+        const confPercent = Math.round(data.confidence);
+        confidenceBar.style.width = confPercent + "%";
+        confidenceBar.innerHTML = confPercent + "%";
+
+        if (confPercent < 70) {
+            resultBox.innerHTML += `<div class="warning">⚠ Low confidence, interpret result cautiously</div>`;
+        }
+
+        if (data.processing_time) {
+            resultBox.innerHTML += `<div class="warning">Processing time: ${data.processing_time}s</div>`;
+        }
+
+    } catch (err) {
+        spinner.style.display = "none";
+        console.error(err);
+        resultBox.className = "result fake";
+        resultBox.innerHTML = "❌ Error: Could not fetch prediction.";
+    }
+}
+
+// -------------------- Flag Post -------------------- //
+async function flagPost() {
+    try {
+        const res = await fetch(`${API_BASE}/predictions/flag`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                text: document.getElementById('jobText').value,
+                reason: document.getElementById('reason').value,
+                comments: document.getElementById('comments').value
+            })
+        });
+
+        if (!res.ok) throw new Error("Error storing flagged post");
+
+        showModal();
+    } catch (err) {
+        console.error(err);
+        alert("❌ Error storing flagged post");
+    }
+}
+
+// -------------------- Modal -------------------- //
+function showModal() {
+    document.getElementById("confirmationModal").style.display = "flex";
+}
+
+function closeModal() {
+    document.getElementById("confirmationModal").style.display = "none";
+}
 </script>
 </body>
 </html>
+
+
+

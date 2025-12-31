@@ -3,6 +3,7 @@ import joblib
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from database.db import engine, SessionLocal
 from database.models import Base, AdminUser
@@ -15,19 +16,14 @@ from predictions.routes import router as prediction_router
 # -------------------- APP SETUP -------------------- #
 app = FastAPI(title="Fake Job Detection System")
 
+# -------------------- CORS -------------------- #
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Or limit to frontend origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# -------------------- DELETE OLD DATABASE (DEV ONLY) -------------------- #
-#DB_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "database", "database.db")
-#if os.path.exists(DB_FILE):
- #   os.remove(DB_FILE)
-  #  print(f"✅ Old database '{DB_FILE}' deleted")
 
 # -------------------- DATABASE INIT -------------------- #
 Base.metadata.create_all(bind=engine)
@@ -74,24 +70,31 @@ else:
 app.state.model = model
 app.state.vectorizer = vectorizer
 
-# -------------------- ROUTES -------------------- #
+# -------------------- ROUTERS -------------------- #
 app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(prediction_router)
 
-# -------------------- FRONTEND (STATIC FILES) -------------------- #
+# -------------------- FRONTEND -------------------- #
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
+
+# Serve static files (CSS/JS/images)
 if os.path.exists(FRONTEND_DIR):
-    app.mount(
-        "/frontend",
-        StaticFiles(directory=FRONTEND_DIR, html=True),
-        name="frontend"
-    )
+    app.mount("/frontend", StaticFiles(directory=FRONTEND_DIR), name="frontend")
+
+# Serve index.html at root
+@app.get("/")
+def serve_frontend():
+    index_file = os.path.join(FRONTEND_DIR, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return {"error": "Frontend not found"}
 
 # -------------------- HEALTH CHECK -------------------- #
-@app.get("/")
-def root():
+@app.get("/health")
+def health():
     return {"status": "Fake Job Detection API running"}
+
 
 
 
