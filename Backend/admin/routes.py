@@ -1,18 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+# admin/routes.py
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from database.db import SessionLocal
+
+from database.db import get_db
 from database.models import AdminUser, FlaggedPost
 from auth.utils import hash_password, verify_password, create_access_token
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
-
-# -------------------- DB DEPENDENCY -------------------- #
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 # -------------------- ADMIN LOGIN -------------------- #
 @router.post("/login")
@@ -28,15 +22,8 @@ def admin_login(data: dict, db: Session = Depends(get_db)):
             detail="Invalid credentials"
         )
 
-    token = create_access_token({
-        "sub": admin.username,
-        "role": "admin"
-    })
-
-    return {
-        "access_token": token,
-        "token_type": "bearer"
-    }
+    token = create_access_token({"sub": admin.username, "role": "admin"})
+    return {"access_token": token, "token_type": "bearer"}
 
 # -------------------- GET FLAGGED POSTS -------------------- #
 @router.get("/flagged")
@@ -62,18 +49,21 @@ def export_flagged_posts(db: Session = Depends(get_db)):
     if not posts:
         raise HTTPException(status_code=404, detail="No flagged posts found")
     
-    result = [
-        {
-            "id": p.id,
-            "post_text": p.post_text,
-            "reason": p.reason,
-            "comments": p.comments,
-            "status": p.status,
-            "confidence": p.confidence,
-            "created_at": p.created_at.isoformat()
-        }
-        for p in posts
-    ]
-    return {"flagged_posts": result}
+    return {
+        "flagged_posts": [
+            {
+                "id": p.id,
+                "post_text": p.post_text,
+                "reason": p.reason,
+                "comments": p.comments,
+                "status": p.status,
+                "confidence": p.confidence,
+                "created_at": p.created_at.isoformat()
+            }
+            for p in posts
+        ]
+    }
+
+
 
 

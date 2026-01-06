@@ -1,183 +1,295 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Admin Dashboard - Fake Job Detection</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        button { margin: 5px; padding: 10px 15px; cursor: pointer; }
-        #retrain-container { margin: 20px 0; }
-        #retrainProgress { width: 0%; height: 20px; background-color: #4BC0C0; }
-    </style>
+<meta charset="UTF-8" />
+<title>Admin Dashboard - Fake Job Detection</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0b1220;
+  color: white;
+}
+
+.container {
+  padding: 20px;
+}
+
+.top-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+}
+
+.card {
+  background: #111a2e;
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.card p {
+  margin: 5px 0 0;
+  opacity: 0.7;
+}
+
+.charts {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.chart-box {
+  background: #111a2e;
+  padding: 20px;
+  border-radius: 10px;
+}
+
+table {
+  width: 100%;
+  margin-top: 30px;
+  border-collapse: collapse;
+}
+
+th, td {
+  border-bottom: 1px solid #333;
+  padding: 10px;
+}
+
+th {
+  text-align: left;
+  background: #16203a;
+}
+
+button {
+  background: #4BC0C0;
+  border: none;
+  color: black;
+  padding: 8px 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+
+.top-actions {
+  margin-bottom: 20px;
+}
+</style>
 </head>
+
 <body>
 
-<h1>Admin Dashboard</h1>
-<button id="logoutBtn">Logout</button>
-<button id="exportBtn">Export Predictions</button>
-<button id="retrainBtn">Retrain Model</button>
+<div class="container">
 
-<!-- Retraining Progress -->
-<div id="retrain-container">
-    <label for="retrainProgress">Retraining Progress:</label>
-    <div style="width: 100%; background: #ddd; border-radius: 5px; overflow: hidden;">
-        <div id="retrainProgress"></div>
+  <h1>Intelligence Center</h1>
+  <p>System Status: <span style="color:#4BC0C0">ONLINE</span></p>
+
+  <div class="top-actions">
+    <button onclick="logout()">Logout</button>
+    <button onclick="exportCSV()">Export Predictions</button>
+    <button onclick="retrain()">Re-calibrate AI</button>
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <div class="top-cards">
+    <div class="card">
+      <h2 id="total">0</h2>
+      <p>Total Analyzed</p>
     </div>
-</div>
+    <div class="card">
+      <h2 id="fake">0</h2>
+      <p>Fake Detected</p>
+    </div>
+    <div class="card">
+      <h2 id="safe">0</h2>
+      <p>Safe Verified</p>
+    </div>
+    <div class="card">
+      <h2 id="flagged">0</h2>
+      <p>Flagged Logs</p>
+    </div>
+  </div>
 
-<!-- Charts -->
-<canvas id="pieChart" width="400" height="200"></canvas>
-<canvas id="lineChart" width="400" height="200"></canvas>
+  <!-- CHARTS -->
+  <div class="charts">
+    <div class="chart-box">
+      <h3>Real-time Metrics</h3>
+      <canvas id="barChart"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>Fraud Distribution</h3>
+      <canvas id="pieChart"></canvas>
+    </div>
+  </div>
 
-<!-- Flagged Posts Table -->
-<table id="flaggedTable">
+  <!-- FLAGGED TABLE -->
+  <h2 style="margin-top:30px;">Flagged Job Posts</h2>
+  <table>
     <thead>
-        <tr>
-            <th>Job Text</th>
-            <th>Reason</th>
-            <th>Comments</th>
-            <th>Timestamp</th>
-        </tr>
+      <tr>
+        <th>Job Text</th>
+        <th>Reason</th>
+        <th>Timestamp</th>
+      </tr>
     </thead>
-    <tbody></tbody>
-</table>
+    <tbody id="flaggedTable"></tbody>
+  </table>
+
+</div>
 
 <script>
 const token = localStorage.getItem("token");
 if (!token) {
-    alert("Session expired. Please login again.");
-    window.location.href = "admin_login.html";
+  alert("Session expired");
+  window.location.href = "admin_login.html";
 }
 
-// Logout
-document.getElementById("logoutBtn").addEventListener("click", () => {
-    localStorage.removeItem("token");
-    window.location.href = "admin_login.html";
-});
-
-// Load Flagged Posts
-async function loadFlaggedPosts() {
-    try {
-        const res = await fetch("http://127.0.0.1:8000/admin/flagged", {
-            headers: { "Authorization": "Bearer " + token }
-        });
-        if (!res.ok) throw new Error("Failed to fetch flagged posts");
-
-        const data = await res.json();
-        const posts = data.flagged_posts || data; // fallback if backend returns list directly
-        const tbody = document.querySelector("#flaggedTable tbody");
-        tbody.innerHTML = '';
-        if (Array.isArray(posts)) {
-            posts.forEach(p => {
-                const row = `<tr>
-                    <td>${p.post_text}</td>
-                    <td>${p.reason}</td>
-                    <td>${p.comments || ""}</td>
-                    <td>${p.created_at || p.timestamp}</td>
-                </tr>`;
-                tbody.innerHTML += row;
-            });
-        }
-    } catch (err) {
-        console.error(err);
-    }
+/* LOGOUT */
+function logout() {
+  localStorage.removeItem("token");
+  window.location.href = "admin_login.html";
 }
 
-// Load Charts
-let pieChart, lineChart;
-async function loadCharts() {
-    try {
-        const res = await fetch("http://127.0.0.1:8000/admin/stats", {
-            headers: { "Authorization": "Bearer " + token }
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-
-        const pieData = [data.fake || 0, data.real || 0];
-        const ctxPie = document.getElementById("pieChart").getContext("2d");
-        if (!pieChart) {
-            pieChart = new Chart(ctxPie, {
-                type: "pie",
-                data: { labels: ["Fake", "Real"], datasets: [{ data: pieData, backgroundColor: ["#FF6384","#36A2EB"] }] }
-            });
-        } else {
-            pieChart.data.datasets[0].data = pieData;
-            pieChart.update();
-        }
-
-        const ctxLine = document.getElementById("lineChart").getContext("2d");
-        const labels = data.trend?.labels || [];
-        const counts = data.trend?.counts || [];
-        if (!lineChart) {
-            lineChart = new Chart(ctxLine, {
-                type: "line",
-                data: { labels, datasets: [{ label: "Total Predictions", data: counts, borderColor: "#4BC0C0", fill: false }] }
-            });
-        } else {
-            lineChart.data.labels = labels;
-            lineChart.data.datasets[0].data = counts;
-            lineChart.update();
-        }
-
-    } catch (err) {
-        console.error(err);
-    }
-}
-
-// Export Predictions
-document.getElementById("exportBtn").addEventListener("click", async () => {
-    try {
-        const res = await fetch("http://127.0.0.1:8000/predictions/export", {
-            headers: { "Authorization": "Bearer " + token }
-        });
-
-        if (!res.ok) {
-            const err = await res.json();
-            return alert("Export failed: " + (err.detail || res.statusText));
-        }
-
-        const blob = await res.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `predictions_${Date.now()}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-    } catch (err) {
-        alert("Export failed: " + err.message);
-    }
-});
-
-// Retrain Model
-document.getElementById("retrainBtn").addEventListener("click", async () => {
-    if (!confirm("Are you sure you want to retrain the model?")) return;
-    const res = await fetch("http://127.0.0.1:8000/retrain/", {
-        method: "POST",
-        headers: { "Authorization": "Bearer " + token }
+/* LOAD DASHBOARD SUMMARY (FROM /predictions/summary) */
+async function loadStats() {
+  try {
+    const res = await fetch("http://127.0.0.1:8000/predictions/summary", {
+      headers: { Authorization: "Bearer " + token }
     });
-    if (!res.ok) return alert("Retraining failed");
     const data = await res.json();
-    alert(`Retraining started. Task ID: ${data.task_id}`);
-});
 
-// Initialize
-loadFlaggedPosts();
-loadCharts();
+    document.getElementById("total").textContent = data.total || 0;
+    document.getElementById("fake").textContent = data.fake || 0;
+    document.getElementById("safe").textContent = data.real || 0;
+
+    renderCharts(data.fake || 0, data.real || 0);
+  } catch (err) {
+    console.error("Error loading summary:", err);
+  }
+}
+
+/* LOAD FLAGGED POSTS */
+async function loadFlagged() {
+  try {
+    const res = await fetch("http://127.0.0.1:8000/admin/flagged", {
+      headers: { Authorization: "Bearer " + token }
+    });
+    const data = await res.json();
+
+    const posts = Array.isArray(data) ? data : data.flagged_posts || [];
+    document.getElementById("flagged").textContent = posts.length;
+
+    const tbody = document.getElementById("flaggedTable");
+    tbody.innerHTML = "";
+
+    posts.forEach(p => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${p.post_text}</td>
+          <td>${p.reason}</td>
+          <td>${p.created_at || "-"}</td>
+        </tr>
+      `;
+    });
+  } catch (err) {
+    console.error("Error loading flagged posts:", err);
+  }
+}
+
+/* CHARTS */
+let barChart, pieChart;
+function renderCharts(fake, real) {
+
+  const ctxBar = document.getElementById("barChart");
+  if (!barChart) {
+    barChart = new Chart(ctxBar, {
+      type: "bar",
+      data: {
+        labels: ["Safe", "Fake"],
+        datasets: [{
+          data: [real, fake],
+          backgroundColor: ["#4BC0C0", "#FF6384"]
+        }]
+      },
+      options: { responsive: true }
+    });
+  } else {
+    barChart.data.datasets[0].data = [real, fake];
+    barChart.update();
+  }
+
+  const ctxPie = document.getElementById("pieChart");
+  if (!pieChart) {
+    pieChart = new Chart(ctxPie, {
+      type: "doughnut",
+      data: {
+        labels: ["Safe", "Fake"],
+        datasets: [{
+          data: [real, fake],
+          backgroundColor: ["#4BC0C0", "#FF6384"]
+        }]
+      },
+      options: { responsive: true }
+    });
+  } else {
+    pieChart.data.datasets[0].data = [real, fake];
+    pieChart.update();
+  }
+}
+
+/* EXPORT PREDICTIONS CSV */
+async function exportCSV() {
+  try {
+    const res = await fetch("http://127.0.0.1:8000/predictions/export", {
+      headers: { Authorization: "Bearer " + token }
+    });
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "predictions.csv";
+    a.click();
+  } catch (err) {
+    console.error("Error exporting CSV:", err);
+  }
+}
+
+/* RETRAIN MODEL */
+async function retrain() {
+  if (!confirm("Retrain model?")) return;
+  try {
+    await fetch("http://127.0.0.1:8000/retrain/", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token }
+    });
+    alert("Retraining started");
+  } catch (err) {
+    console.error("Error retraining model:", err);
+  }
+}
+
+/* INIT DASHBOARD */
+loadStats();
+loadFlagged();
 setInterval(() => {
-    loadFlaggedPosts();
-    loadCharts();
+  loadStats();
+  loadFlagged();
 }, 10000);
 </script>
 
 </body>
 </html>
+
+
+
 
 
 
