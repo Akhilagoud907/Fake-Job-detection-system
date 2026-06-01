@@ -148,15 +148,15 @@ button {
 
 <script>
 const token = localStorage.getItem("token");
+
 if (!token) {
-  alert("Session expired");
-  window.location.href = "admin_login.html";
+  window.location.href = "index.html";
 }
 
 /* LOGOUT */
 function logout() {
   localStorage.removeItem("token");
-  window.location.href = "admin_login.html";
+  window.location.href = "index.html";
 }
 
 /* LOAD DASHBOARD SUMMARY (FROM /predictions/summary) */
