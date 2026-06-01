@@ -162,7 +162,7 @@ function logout() {
 /* LOAD DASHBOARD SUMMARY (FROM /predictions/summary) */
 async function loadStats() {
   try {
-    const res = await fetch("http://127.0.0.1:8000/predictions/summary", {
+    const res = await fetch("https://fake-job-detection-system-2.onrender.com/predictions/summary", {
       headers: { Authorization: "Bearer " + token }
     });
     const data = await res.json();
@@ -180,7 +180,7 @@ async function loadStats() {
 /* LOAD FLAGGED POSTS */
 async function loadFlagged() {
   try {
-    const res = await fetch("http://127.0.0.1:8000/admin/flagged", {
+    const res = await fetch("https://fake-job-detection-system-2.onrender.com/admin/flagged", {
       headers: { Authorization: "Bearer " + token }
     });
     const data = await res.json();
@@ -249,7 +249,7 @@ function renderCharts(fake, real) {
 /* EXPORT PREDICTIONS CSV */
 async function exportCSV() {
   try {
-    const res = await fetch("http://127.0.0.1:8000/predictions/export", {
+    const res = await fetch("https://fake-job-detection-system-2.onrender.com/predictions/export", {
       headers: { Authorization: "Bearer " + token }
     });
     const blob = await res.blob();
@@ -266,7 +266,7 @@ async function exportCSV() {
 async function retrain() {
   if (!confirm("Retrain model?")) return;
   try {
-    await fetch("http://127.0.0.1:8000/retrain/", {
+    await fetch("https://fake-job-detection-system-2.onrender.com/retrain/", {
       method: "POST",
       headers: { Authorization: "Bearer " + token }
     });
