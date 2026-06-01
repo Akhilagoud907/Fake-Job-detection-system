@@ -3,3 +3,6 @@ uvicorn
 scikit-learn
 joblib
 sqlalchemy
+python-jose
+python-dotenv
+python-multipart
